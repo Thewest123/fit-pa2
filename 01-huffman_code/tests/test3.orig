@@ -1,0 +1,59 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#define LIST_MAX  10
+
+/* Program nacte n cisel ze vstupu a ulozi je do pole. Nasledne cte vstupni
+ * data a testuje, zda je zadana hodnota obsazena v drive vyplnenem poli.
+ *
+ * Toto reseni neni spravne:
+ *  - pokud je na vstupu vice cisel nez LIST_MAX, muze program spadnout (prepis pameti)
+ *  - vse je "naplacane" do main
+ */
+/*---------------------------------------------------------------------------*/
+int main ( int argc, char * argv [] )
+{
+  int list[LIST_MAX];
+  int i, x, cnt;
+
+  printf ( "Zadejte pocet prvku pole:\n" );
+  if ( scanf ( "%d", &cnt ) != 1 || cnt < 1 )
+  {
+    printf ( "Nespravny vstup.\n" );
+    return ( 1 );
+  }
+  /* A co kdyz cnt > LIST_MAX ? */
+
+
+  printf ( "Zadejte prvky pole:\n" );
+  for ( i = 0; i < cnt; i ++ )
+  {
+    if ( scanf ( "%d", &x ) != 1 )
+    {
+      printf ( "Nespravny vstup.\n" );
+      return ( 1 );
+    }
+    list[i] = x;
+  }
+
+  printf ( "Zadejte hledane prvky:\n" );
+  while ( scanf ( "%d", &x ) == 1 )
+  {
+    for ( i = 0; i < cnt; i ++ )
+      if ( list[i] == x )
+        break;
+  
+    if ( i < cnt )
+      printf ( "Cislo %d je v poli obsazeno\n", x );
+    else
+      printf ( "Cislo %d neni v poli obsazeno\n", x );
+  }
+
+  if ( ! feof ( stdin ) )
+  {
+    printf ( "Nespravny vstup.\n" );
+    return ( 1 );
+  }
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
