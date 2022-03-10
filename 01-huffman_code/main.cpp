@@ -38,7 +38,7 @@ public:
             m_bytes.push_back(c);
         }
 
-        m_bitsCount = m_bytes.size() * 8;
+        m_bitsCount = m_bytes.size() * 8L;
     }
 
     /**
@@ -51,7 +51,15 @@ public:
     bool nextBit(bool &bit)
     {
         if (m_bitIndex >= m_bitsCount)
+        {
             return false;
+        }
+
+        if ((size_t)(m_bitIndex / 8) >= m_bytes.size())
+        {
+            throw runtime_error("Can't read next bit!");
+            return false;
+        }
 
         int shiftCount = 7 - (m_bitIndex & 0b00000111);
         char lastBit = (m_bytes[m_bitIndex / 8] >> shiftCount) & 0b00000001;
@@ -59,6 +67,7 @@ public:
         m_bitIndex++;
 
         bit = (lastBit == '\0') ? false : true;
+        // cout << ((bit) ? '1' : '0');
 
         return true;
     }
@@ -68,25 +77,126 @@ public:
      *
      * @return char
      */
-    char nextChar()
+    unsigned long nextChar()
     {
-        // TODO: Convert to UTF-8 multi-byte reader
+        bool bit = false;
+        nextBit(bit);
 
-        char builtChar = 0;
-        for (int i = 7; i >= 0; i--)
+        // Read ASCII
+        if (!bit)
         {
-            bool bit;
-            nextBit(bit);
+            unsigned char builtChar = 0;
+            for (int i = 6; i >= 0; i--)
+            {
+                bool bit = false;
+                nextBit(bit);
 
-            // Set i-th bit to 1
-            if (bit)
-                builtChar |= 1 << i;
-            // Clear i-th bit to 0
-            else
-                builtChar &= ~(1 << i);
+                // Set i-th bit to 1
+                if (bit)
+                    builtChar |= 1 << i;
+                // Clear i-th bit to 0
+                else
+                    builtChar &= ~(1 << i);
+            }
+
+            return builtChar;
         }
 
-        return builtChar;
+        // Read UTF-8
+        int utfBytesCount = 0;
+        unsigned long builtCharUtf = 0UL;
+
+        while (bit)
+        {
+            utfBytesCount++;
+            nextBit(bit);
+        }
+
+        if (utfBytesCount == 2)
+        {
+            builtCharUtf |= (1UL << 15);
+            builtCharUtf |= (1UL << 14);
+            builtCharUtf &= (~(1UL << 13));
+
+            for (int i = 12; i >= 0; i--)
+            {
+                nextBit(bit);
+
+                // Set i-th bit to 1
+                if (bit)
+                    builtCharUtf |= (1UL << i);
+                // Clear i-th bit to 0
+                else
+                    builtCharUtf &= (~(1UL << i));
+
+                if (((i == 7) && (!bit)) ||
+                    ((i == 6) && (bit)))
+                {
+                    throw runtime_error("Invalid UTF-8 format (2 bytes)");
+                }
+            }
+
+            return builtCharUtf;
+        }
+
+        if (utfBytesCount == 3)
+        {
+            builtCharUtf |= (1UL << 23);
+            builtCharUtf |= (1UL << 22);
+            builtCharUtf |= (1UL << 21);
+            builtCharUtf &= (~(1UL << 20));
+
+            for (int i = 19; i >= 0; i--)
+            {
+                nextBit(bit);
+
+                // Set i-th bit to 1
+                if (bit)
+                    builtCharUtf |= (1UL << i);
+                // Clear i-th bit to 0
+                else
+                    builtCharUtf &= (~(1UL << i));
+
+                if (((i == 7 || i == 15) && (!bit)) ||
+                    ((i == 6 || i == 14) && (bit)))
+                {
+                    throw runtime_error("Invalid UTF-8 format (3 bytes)");
+                }
+            }
+
+            return builtCharUtf;
+        }
+
+        if (utfBytesCount == 4)
+        {
+            builtCharUtf |= (1UL << 31);
+            builtCharUtf |= (1UL << 30);
+            builtCharUtf |= (1UL << 29);
+            builtCharUtf |= (1UL << 28);
+            builtCharUtf &= (~(1UL << 27));
+
+            for (int i = 26; i >= 0; i--)
+            {
+                nextBit(bit);
+
+                // Set i-th bit to 1
+                if (bit)
+                    builtCharUtf |= (1UL << i);
+                // Clear i-th bit to 0
+                else
+                    builtCharUtf &= (~(1UL << i));
+
+                if (((i == 7 || i == 15 || i == 23) && (!bit)) ||
+                    ((i == 6 || i == 14 || i == 22) && (bit)))
+                {
+                    throw runtime_error("Invalid UTF-8 format (4 bytes)");
+                }
+            }
+
+            return builtCharUtf;
+        }
+
+        throw runtime_error("Bad ASCII input!");
     }
 
     /**
@@ -99,7 +209,7 @@ public:
         int chunkSize = 0;
         for (int i = 11; i >= 0; i--)
         {
-            bool bit;
+            bool bit = false;
             nextBit(bit);
 
             // Set i-th bit to 1
@@ -118,10 +228,10 @@ struct TNode
 {
     TNode *left;
     TNode *right;
-    char value;
-    bool isLeaf = false;
+    unsigned long value;
+    bool isLeaf;
 
-    TNode(char value)
+    TNode(unsigned long value)
     {
         left = nullptr;
         right = nullptr;
@@ -140,7 +250,7 @@ struct TNode
 
 TNode *buildTree(CBitReader &br)
 {
-    bool bit;
+    bool bit = false;
     br.nextBit(bit);
 
     // If bit was 0, we are building an inner node
@@ -154,8 +264,19 @@ TNode *buildTree(CBitReader &br)
     }
 
     // Else we are building a leaf node
-    char znak = br.nextChar();
+    unsigned long znak = br.nextChar();
     return new TNode(znak);
+}
+
+void deleteTree(TNode *node)
+{
+    if (node == nullptr)
+        return;
+
+    deleteTree(node->left);
+    deleteTree(node->right);
+
+    delete node;
 }
 
 bool decompressFile(const char *inFileName, const char *outFileName)
@@ -165,52 +286,99 @@ bool decompressFile(const char *inFileName, const char *outFileName)
     ofstream ofs(outFileName, ios::out | ios::binary);
 
     if (!ifs)
+    {
+        ifs.close();
+        ofs.close();
+
         return false;
+    }
 
     CBitReader bitReader(ifs);
 
     // Build binary tree
-    TNode *root = buildTree(bitReader);
+    TNode *root = nullptr;
 
-    bool bit;
-    while (bitReader.nextBit(bit))
+    try
     {
-        // Read chunk size
-        int chunkSize;
-        if (bit)
-            chunkSize = 4096;
-        else
-            chunkSize = bitReader.nextChunkSize();
+        root = buildTree(bitReader);
 
-        // Read coded values and write to ofstream ofs
-        for (int i = 0; i < chunkSize; i++)
+        bool bit;
+        while (bitReader.nextBit(bit))
         {
-            TNode *finalNode = root;
-            bool canRead;
-            while ((canRead = bitReader.nextBit(bit)))
-            {
-                if (bit)
-                    finalNode = finalNode->right;
-                else
-                    finalNode = finalNode->left;
+            // Read chunk size
+            int chunkSize = 4096;
+            if (!bit)
+                chunkSize = bitReader.nextChunkSize();
 
-                if (finalNode->isLeaf)
+            // Read coded values and write to ofstream ofs
+            for (int i = 0; i < chunkSize; i++)
+            {
+                TNode *finalNode = root;
+                bool canRead;
+                while ((canRead = bitReader.nextBit(bit)))
                 {
-                    ofs << finalNode->value;
-                    break;
+                    if (bit)
+                        finalNode = finalNode->right;
+                    else
+                        finalNode = finalNode->left;
+
+                    if (finalNode->isLeaf)
+                    {
+                        unsigned long x = finalNode->value;
+
+                        // Inspired from https://stackoverflow.com/a/3269948
+                        char byte3 = (char)((0xff000000 & x) >> 24);
+                        char byte2 = (char)((0x00ff0000 & x) >> 16);
+                        char byte1 = (char)((0x0000ff00 & x) >> 8);
+                        char byte0 = (char)(0x000000ff & x);
+
+                        if (byte3 != '\0')
+                            ofs << byte3;
+
+                        if (byte2 != '\0')
+                            ofs << byte2;
+
+                        if (byte1 != '\0')
+                            ofs << byte1;
+
+                        if (byte0 != '\0')
+                            ofs << byte0;
+
+                        break;
+                    }
+                }
+
+                // If chunkSize in file is wrong (bigger then real chunk size) or can't read more bits
+                if (!canRead)
+                {
+                    ifs.close();
+                    ofs.close();
+
+                    deleteTree(root);
+
+                    return false;
                 }
             }
-
-            // If chunkSize in file is wrong (bigger then real chunk size)
-            if (!canRead && i < chunkSize)
-                return false;
         }
+    }
+    catch (const runtime_error &e)
+    {
+        ifs.close();
+        ofs.close();
+
+        deleteTree(root);
+
+        cout << e.what() << endl;
+
+        return false;
     }
 
     ifs.close();
 
     ofs << flush;
     ofs.close();
+
+    deleteTree(root);
 
     return true;
 }
@@ -253,6 +421,8 @@ bool identicalFiles(const char *fileName1, const char *fileName2)
 
 int main(void)
 {
+    assert(!decompressFile("tests/wrong_ascii.huf", "tempfile"));
+
     assert(decompressFile("tests/test0.huf", "tempfile"));
     assert(identicalFiles("tests/test0.orig", "tempfile"));
 
