@@ -33,7 +33,7 @@ public:
     CBitReader(ifstream &ifs)
     {
         char c;
-        while (ifs.get(c))
+        while (ifs.good() && ifs.get(c))
         {
             m_bytes.push_back(c);
         }
@@ -53,16 +53,18 @@ public:
         if (m_bitIndex >= m_bitsCount)
             return false;
 
-        char charBit = (m_bytes[m_bitIndex / 8] >> (7 - (m_bitIndex & 0x7))) & 0x1;
+        int shiftCount = 7 - (m_bitIndex & 0b00000111);
+        char lastBit = (m_bytes[m_bitIndex / 8] >> shiftCount) & 0b00000001;
+
         m_bitIndex++;
 
-        bit = (charBit == '\0') ? false : true;
+        bit = (lastBit == '\0') ? false : true;
 
         return true;
     }
 
     /**
-     * @brief Returns next 8 bits and returns them as a char
+     * @brief Reads next 8 bits and returns them as a char
      *
      * @return char
      */
@@ -119,12 +121,20 @@ struct TNode
     char value;
     bool isLeaf = false;
 
-    TNode(char value, bool isLeaf)
+    TNode(char value)
     {
         left = nullptr;
         right = nullptr;
         this->value = value;
-        this->isLeaf = isLeaf;
+        this->isLeaf = true;
+    }
+
+    TNode()
+    {
+        left = nullptr;
+        right = nullptr;
+        this->value = 0;
+        this->isLeaf = false;
     }
 };
 
@@ -133,19 +143,19 @@ TNode *buildTree(CBitReader &br)
     bool bit;
     br.nextBit(bit);
 
-    if (bit == false)
+    // If bit was 0, we are building an inner node
+    if (!bit)
     {
-        TNode *node = new TNode('\0', false);
+        TNode *node = new TNode();
         node->left = buildTree(br);
         node->right = buildTree(br);
 
         return node;
     }
-    else
-    {
-        char znak = br.nextChar();
-        return new TNode(znak, true);
-    }
+
+    // Else we are building a leaf node
+    char znak = br.nextChar();
+    return new TNode(znak);
 }
 
 bool decompressFile(const char *inFileName, const char *outFileName)
@@ -162,38 +172,44 @@ bool decompressFile(const char *inFileName, const char *outFileName)
     // Build binary tree
     TNode *root = buildTree(bitReader);
 
-    // Read chunk size
     bool bit;
-    int chunkSize;
-    bitReader.nextBit(bit);
-
-    if (bit == true)
-        chunkSize = 4096;
-    else
-        chunkSize = bitReader.nextChunkSize();
-
-    // Read coded values and write to ofstream ofs
-    for (int i = 0; i < chunkSize; i++)
+    while (bitReader.nextBit(bit))
     {
-        TNode *finalNode = root;
-        while (bitReader.nextBit(bit))
-        {
-            if (bit)
-                finalNode = finalNode->right;
-            else
-                finalNode = finalNode->left;
+        // Read chunk size
+        int chunkSize;
+        if (bit)
+            chunkSize = 4096;
+        else
+            chunkSize = bitReader.nextChunkSize();
 
-            if (finalNode->isLeaf)
+        // Read coded values and write to ofstream ofs
+        for (int i = 0; i < chunkSize; i++)
+        {
+            TNode *finalNode = root;
+            bool canRead;
+            while ((canRead = bitReader.nextBit(bit)))
             {
-                ofs << finalNode->value;
-                break;
+                if (bit)
+                    finalNode = finalNode->right;
+                else
+                    finalNode = finalNode->left;
+
+                if (finalNode->isLeaf)
+                {
+                    ofs << finalNode->value;
+                    break;
+                }
             }
+
+            // If chunkSize in file is wrong (bigger then real chunk size)
+            if (!canRead && i < chunkSize)
+                return false;
         }
     }
 
     ifs.close();
 
-    ofs << std::flush;
+    ofs << flush;
     ofs.close();
 
     return true;
@@ -207,8 +223,32 @@ bool compressFile(const char *inFileName, const char *outFileName)
 #ifndef __PROGTEST__
 bool identicalFiles(const char *fileName1, const char *fileName2)
 {
-    // todo
-    return true;
+    ifstream ifs1(fileName1, ios::in | ios::binary);
+    ifstream ifs2(fileName2, ios::in | ios::binary);
+
+    // Set cursor to the end of files
+    ifs1.seekg(0, ios_base::end);
+    ifs2.seekg(0, ios_base::end);
+
+    // Check files are same size
+    if (ifs1.tellg() != ifs2.tellg())
+        return false;
+
+    // Set cursor to the beggining
+    ifs1.seekg(0, ios_base::beg);
+    ifs2.seekg(0, ios_base::beg);
+
+    // Set iterators
+    istreambuf_iterator<char> iterator1(ifs1);
+    istreambuf_iterator<char> iterator2(ifs2);
+
+    bool isEqual = equal(iterator1, istreambuf_iterator<char>(), iterator2);
+
+    // Close stream
+    ifs1.close();
+    ifs2.close();
+
+    return isEqual;
 }
 
 int main(void)
