@@ -38,7 +38,25 @@ public:
             m_bytes.push_back(c);
         }
 
+        if (ifs.bad())
+            throw runtime_error("Ifs bad");
+
         m_bitsCount = m_bytes.size() * 8L;
+
+        // Check there is at least one 1 in input
+        bool isValid = false;
+        for (size_t i = 0; i < m_bytes.size(); i++)
+        {
+            char byte = m_bytes[i];
+            if (byte != '\0')
+            {
+                isValid = true;
+                break;
+            }
+        }
+
+        if (!isValid)
+            throw runtime_error("Input file contains all zeroes!");
     }
 
     /**
@@ -82,29 +100,32 @@ public:
         bool bit = false;
         nextBit(bit);
 
+        unsigned long builtCharUtf = 0UL;
+
         // Read ASCII
         if (!bit)
         {
-            unsigned char builtChar = 0;
             for (int i = 6; i >= 0; i--)
             {
                 bool bit = false;
-                nextBit(bit);
+                if (!nextBit(bit))
+                    cout << "lol";
 
                 // Set i-th bit to 1
                 if (bit)
-                    builtChar |= 1 << i;
+                    builtCharUtf |= (1UL << i);
                 // Clear i-th bit to 0
                 else
-                    builtChar &= ~(1 << i);
+                    builtCharUtf &= (~(1UL << i));
             }
 
-            return builtChar;
+            return builtCharUtf;
         }
+
+        // throw runtime_error("Invalid ASCII");
 
         // Read UTF-8
         int utfBytesCount = 0;
-        unsigned long builtCharUtf = 0UL;
 
         while (bit)
         {
@@ -120,7 +141,8 @@ public:
 
             for (int i = 12; i >= 0; i--)
             {
-                nextBit(bit);
+                if (!nextBit(bit))
+                    cout << "lol";
 
                 // Set i-th bit to 1
                 if (bit)
@@ -148,7 +170,8 @@ public:
 
             for (int i = 19; i >= 0; i--)
             {
-                nextBit(bit);
+                if (!nextBit(bit))
+                    cout << "lol";
 
                 // Set i-th bit to 1
                 if (bit)
@@ -177,7 +200,8 @@ public:
 
             for (int i = 26; i >= 0; i--)
             {
-                nextBit(bit);
+                if (!nextBit(bit))
+                    cout << "lol";
 
                 // Set i-th bit to 1
                 if (bit)
@@ -196,7 +220,7 @@ public:
             return builtCharUtf;
         }
 
-        throw runtime_error("Bad ASCII input!");
+        throw runtime_error("Invalid ASCII or UTF-8 input!");
     }
 
     /**
@@ -251,7 +275,18 @@ struct TNode
 TNode *buildTree(CBitReader &br)
 {
     bool bit = false;
-    br.nextBit(bit);
+    try
+    {
+        br.nextBit(bit);
+    }
+    catch (const std::runtime_error &e)
+    {
+        cout << "[Exception] buildTree interrupted in nextBit(), " << e.what() << endl;
+        return new TNode();
+    }
+
+    if (!bit && br.m_bitIndex >= br.m_bitsCount)
+        throw runtime_error("No leaf node present!");
 
     // If bit was 0, we are building an inner node
     if (!bit)
@@ -264,7 +299,17 @@ TNode *buildTree(CBitReader &br)
     }
 
     // Else we are building a leaf node
-    unsigned long znak = br.nextChar();
+    unsigned long znak = '\0';
+    try
+    {
+        znak = br.nextChar();
+    }
+    catch (const std::runtime_error &e)
+    {
+        cout << "[Exception] buildTree interrupted in nextChar(), " << e.what() << endl;
+        return new TNode();
+    }
+
     return new TNode(znak);
 }
 
@@ -285,21 +330,26 @@ bool decompressFile(const char *inFileName, const char *outFileName)
     ifstream ifs(inFileName, ios::in | ios::binary);
     ofstream ofs(outFileName, ios::out | ios::binary);
 
-    if (!ifs)
+    if (!ifs || !ifs.is_open() || !ifs.good())
     {
         ifs.close();
-        ofs.close();
-
+        cout << "ifs fail" << endl;
         return false;
     }
 
-    CBitReader bitReader(ifs);
+    if (!ofs || !ofs.is_open() || !ofs.good())
+    {
+        ofs.close();
+        cout << "ofs fail" << endl;
+        return false;
+    }
 
-    // Build binary tree
     TNode *root = nullptr;
-
     try
     {
+        CBitReader bitReader(ifs);
+
+        // Build binary tree
         root = buildTree(bitReader);
 
         bool bit;
@@ -309,6 +359,9 @@ bool decompressFile(const char *inFileName, const char *outFileName)
             int chunkSize = 4096;
             if (!bit)
                 chunkSize = bitReader.nextChunkSize();
+
+            // if (chunkSize == 0)
+            //     return false;
 
             // Read coded values and write to ofstream ofs
             for (int i = 0; i < chunkSize; i++)
@@ -322,6 +375,9 @@ bool decompressFile(const char *inFileName, const char *outFileName)
                     else
                         finalNode = finalNode->left;
 
+                    if (finalNode == nullptr)
+                        throw runtime_error("Trying to access nullptr node!");
+
                     if (finalNode->isLeaf)
                     {
                         unsigned long x = finalNode->value;
@@ -333,16 +389,18 @@ bool decompressFile(const char *inFileName, const char *outFileName)
                         char byte0 = (char)(0x000000ff & x);
 
                         if (byte3 != '\0')
-                            ofs << byte3;
+                            ofs << byte3 << flush;
 
                         if (byte2 != '\0')
-                            ofs << byte2;
+                            ofs << byte2 << flush;
 
                         if (byte1 != '\0')
-                            ofs << byte1;
+                            ofs << byte1 << flush;
 
-                        if (byte0 != '\0')
-                            ofs << byte0;
+                        ofs << byte0 << flush;
+
+                        if (!ofs || ofs.bad())
+                            throw runtime_error("OFS error while writing!");
 
                         break;
                     }
@@ -350,14 +408,7 @@ bool decompressFile(const char *inFileName, const char *outFileName)
 
                 // If chunkSize in file is wrong (bigger then real chunk size) or can't read more bits
                 if (!canRead)
-                {
-                    ifs.close();
-                    ofs.close();
-
-                    deleteTree(root);
-
-                    return false;
-                }
+                    throw runtime_error("Wrong chunkSize in file!");
             }
         }
     }
@@ -368,17 +419,21 @@ bool decompressFile(const char *inFileName, const char *outFileName)
 
         deleteTree(root);
 
-        cout << e.what() << endl;
+        cout << "[Exception] " << e.what() << " (in: " << inFileName << ", out: " << outFileName << ")" << endl;
+
+        // if (!ifs.good() || !ofs.good())
+        //     return false;
 
         return false;
     }
 
     ifs.close();
-
-    ofs << flush;
     ofs.close();
 
     deleteTree(root);
+
+    // if (!ifs.good() || !ofs.good())
+    //     return false;
 
     return true;
 }
@@ -421,7 +476,18 @@ bool identicalFiles(const char *fileName1, const char *fileName2)
 
 int main(void)
 {
-    assert(!decompressFile("tests/wrong_ascii.huf", "tempfile"));
+    assert(decompressFile("tests/in_4537689.bin", "tempfile")); // also need to write bytes that are 0x00
+    assert(identicalFiles("tests/ref_4537689.bin", "tempfile"));
+
+    assert(!decompressFile("tests/wrong_ascii.huf", "tempfile")); // broken ascii
+
+    assert(!decompressFile("tests/not_existing_file.huf", "tempfile")); // cant open file
+
+    assert(!decompressFile("tests/test0.huf", "tests/no_write_permission.bin")); // no write permission
+
+    assert(!decompressFile("tests/same_nuly.huf", "tempfile")); // no build tree leaf stopping point
+
+    assert(!decompressFile("tests/in_4537741.bin", "tempfile")); // chunk size 0?
 
     assert(decompressFile("tests/test0.huf", "tempfile"));
     assert(identicalFiles("tests/test0.orig", "tempfile"));
