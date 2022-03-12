@@ -95,12 +95,12 @@ public:
      *
      * @return char
      */
-    unsigned long nextChar()
+    unsigned int nextChar()
     {
         bool bit = false;
         nextBit(bit);
 
-        unsigned long builtCharUtf = 0UL;
+        unsigned int builtCharUtf = 0;
 
         // Read ASCII
         if (!bit)
@@ -113,11 +113,14 @@ public:
 
                 // Set i-th bit to 1
                 if (bit)
-                    builtCharUtf |= (1UL << i);
+                    builtCharUtf |= (1U << i);
                 // Clear i-th bit to 0
                 else
-                    builtCharUtf &= (~(1UL << i));
+                    builtCharUtf &= (~(1U << i));
             }
+
+            if (builtCharUtf < 0x00U || builtCharUtf > 0x7FU)
+                throw runtime_error("Invalid UTF-8 format, out of range (ASCII)");
 
             return builtCharUtf;
         }
@@ -135,9 +138,9 @@ public:
 
         if (utfBytesCount == 2)
         {
-            builtCharUtf |= (1UL << 15);
-            builtCharUtf |= (1UL << 14);
-            builtCharUtf &= (~(1UL << 13));
+            builtCharUtf |= (1U << 15);
+            builtCharUtf |= (1U << 14);
+            builtCharUtf &= (~(1U << 13));
 
             for (int i = 12; i >= 0; i--)
             {
@@ -146,10 +149,10 @@ public:
 
                 // Set i-th bit to 1
                 if (bit)
-                    builtCharUtf |= (1UL << i);
+                    builtCharUtf |= (1U << i);
                 // Clear i-th bit to 0
                 else
-                    builtCharUtf &= (~(1UL << i));
+                    builtCharUtf &= (~(1U << i));
 
                 if (((i == 7) && (!bit)) ||
                     ((i == 6) && (bit)))
@@ -158,15 +161,18 @@ public:
                 }
             }
 
+            if (builtCharUtf < 0xC280U || builtCharUtf > 0xDFBFU)
+                throw runtime_error("Invalid UTF-8 format, out of range (2 bytes)!");
+
             return builtCharUtf;
         }
 
         if (utfBytesCount == 3)
         {
-            builtCharUtf |= (1UL << 23);
-            builtCharUtf |= (1UL << 22);
-            builtCharUtf |= (1UL << 21);
-            builtCharUtf &= (~(1UL << 20));
+            builtCharUtf |= (1U << 23);
+            builtCharUtf |= (1U << 22);
+            builtCharUtf |= (1U << 21);
+            builtCharUtf &= (~(1U << 20));
 
             for (int i = 19; i >= 0; i--)
             {
@@ -175,10 +181,10 @@ public:
 
                 // Set i-th bit to 1
                 if (bit)
-                    builtCharUtf |= (1UL << i);
+                    builtCharUtf |= (1U << i);
                 // Clear i-th bit to 0
                 else
-                    builtCharUtf &= (~(1UL << i));
+                    builtCharUtf &= (~(1U << i));
 
                 if (((i == 7 || i == 15) && (!bit)) ||
                     ((i == 6 || i == 14) && (bit)))
@@ -187,16 +193,19 @@ public:
                 }
             }
 
+            if (builtCharUtf < 0xE0A080U || builtCharUtf > 0xEFBFBFU)
+                throw runtime_error("Invalid UTF-8 format, out of range (3 bytes)!");
+
             return builtCharUtf;
         }
 
         if (utfBytesCount == 4)
         {
-            builtCharUtf |= (1UL << 31);
-            builtCharUtf |= (1UL << 30);
-            builtCharUtf |= (1UL << 29);
-            builtCharUtf |= (1UL << 28);
-            builtCharUtf &= (~(1UL << 27));
+            builtCharUtf |= (1U << 31);
+            builtCharUtf |= (1U << 30);
+            builtCharUtf |= (1U << 29);
+            builtCharUtf |= (1U << 28);
+            builtCharUtf &= (~(1U << 27));
 
             for (int i = 26; i >= 0; i--)
             {
@@ -205,10 +214,10 @@ public:
 
                 // Set i-th bit to 1
                 if (bit)
-                    builtCharUtf |= (1UL << i);
+                    builtCharUtf |= (1U << i);
                 // Clear i-th bit to 0
                 else
-                    builtCharUtf &= (~(1UL << i));
+                    builtCharUtf &= (~(1U << i));
 
                 if (((i == 7 || i == 15 || i == 23) && (!bit)) ||
                     ((i == 6 || i == 14 || i == 22) && (bit)))
@@ -216,6 +225,9 @@ public:
                     throw runtime_error("Invalid UTF-8 format (4 bytes)");
                 }
             }
+
+            if (builtCharUtf < 0xF0908080U || builtCharUtf > 0xF48FBFBFU)
+                throw runtime_error("Invalid UTF-8 format, out of range (4 bytes)!");
 
             return builtCharUtf;
         }
@@ -252,10 +264,10 @@ struct TNode
 {
     TNode *left;
     TNode *right;
-    unsigned long value;
+    unsigned int value;
     bool isLeaf;
 
-    TNode(unsigned long value)
+    TNode(unsigned int value)
     {
         left = nullptr;
         right = nullptr;
@@ -272,7 +284,7 @@ struct TNode
     }
 };
 
-TNode *buildTree(CBitReader &br)
+TNode *buildTree(CBitReader &br, bool &failFlag)
 {
     bool bit = false;
     try
@@ -292,8 +304,8 @@ TNode *buildTree(CBitReader &br)
     if (!bit)
     {
         TNode *node = new TNode();
-        node->left = buildTree(br);
-        node->right = buildTree(br);
+        node->left = buildTree(br, failFlag);
+        node->right = buildTree(br, failFlag);
 
         return node;
     }
@@ -306,7 +318,8 @@ TNode *buildTree(CBitReader &br)
     }
     catch (const std::runtime_error &e)
     {
-        cout << "[Exception] buildTree interrupted in nextChar(), " << e.what() << endl;
+        cout << "buildTree interrupted in nextChar(), " << e.what() << endl;
+        failFlag = true;
         return new TNode();
     }
 
@@ -350,7 +363,11 @@ bool decompressFile(const char *inFileName, const char *outFileName)
         CBitReader bitReader(ifs);
 
         // Build binary tree
-        root = buildTree(bitReader);
+        bool buildFailed = false;
+        root = buildTree(bitReader, buildFailed);
+
+        if (buildFailed)
+            throw runtime_error("buildTree() failed!");
 
         bool bit;
         while (bitReader.nextBit(bit))
@@ -380,7 +397,7 @@ bool decompressFile(const char *inFileName, const char *outFileName)
 
                     if (finalNode->isLeaf)
                     {
-                        unsigned long x = finalNode->value;
+                        unsigned int x = finalNode->value;
 
                         // Inspired from https://stackoverflow.com/a/3269948
                         char byte3 = (char)((0xff000000 & x) >> 24);
@@ -487,7 +504,7 @@ int main(void)
 
     assert(!decompressFile("tests/same_nuly.huf", "tempfile")); // no build tree leaf stopping point
 
-    assert(!decompressFile("tests/in_4537741.bin", "tempfile")); // chunk size 0?
+    assert(!decompressFile("tests/in_4537741.bin", "tempfile")); // symbol out of UTF-8 range
 
     assert(decompressFile("tests/test0.huf", "tempfile"));
     assert(identicalFiles("tests/test0.orig", "tempfile"));
