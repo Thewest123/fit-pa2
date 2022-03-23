@@ -75,6 +75,28 @@ public:
         return true;
     }
 
+    static int countDaysDifference(const CDate &dateA, const CDate &dateB)
+    {
+        long long daysDiff = 0;
+
+        if (dateA.m_year != dateB.m_year)
+        {
+            // Remaining days to the end of the year
+            daysDiff = (isLeapYear(dateA.m_year) ? 366 : 365) - dateA.countDaysFromBeggining();
+
+            for (int i = dateA.m_year + 1; i < dateB.m_year; i++)
+                daysDiff += isLeapYear(i) ? 366 : 365;
+
+            daysDiff += dateB.countDaysFromBeggining();
+        }
+        else
+        {
+            daysDiff = dateB.countDaysFromBeggining() - dateA.countDaysFromBeggining();
+        }
+
+        return daysDiff;
+    }
+
     int countDaysFromBeggining() const
     {
         int result = 0;
@@ -96,17 +118,21 @@ public:
 
     void addMonths(int months)
     {
+        // For adding positive value, possible overflow to next year
         if (m_month + months > 12)
         {
-            addYears(1);
-            m_month = (m_month + months - 12 * (months % 12));
+            int years = (months > 12) ? months / 12 : 1;
+            addYears(years);
+            m_month = (m_month + months - 12 * (years));
             return;
         }
 
+        // For adding negative value, possible underflow to previous year
         if (m_month + months < 1)
         {
-            addYears(-1);
-            m_month = (m_month + months + 12 * (abs(months) % 12));
+            int years = (abs(months) > 12) ? (abs(months) / 12) : 1;
+            addYears(-years);
+            m_month = (m_month + months + 12 * (years));
             return;
         }
 
@@ -187,6 +213,7 @@ public:
         m_day = day;
     }
 
+    // Output date as formatted string
     friend ostream &operator<<(ostream &output, const CDate &date)
     {
         output << std::setfill('0') << std::setw(4) << date.m_year << '-';
@@ -195,6 +222,7 @@ public:
         return output;
     }
 
+    // Read input and parse to date
     friend istream &operator>>(istream &input, CDate &date)
     {
         char d0 = 0;
@@ -268,14 +296,7 @@ public:
         return countDaysDifference(rhs, *this) <= 0;
     }
 
-    friend CDate operator+(const CDate &lhs, const CDate &rhs)
-    {
-        CDate ret(lhs);
-        int days = rhs.countDaysFromBeggining();
-        ret.addDays(days);
-        return ret;
-    }
-
+    // date + num
     CDate operator+(const int days) const
     {
         CDate ret(m_year, m_month, m_day);
@@ -283,17 +304,26 @@ public:
         return ret;
     }
 
+    // date += num
     CDate &operator+=(const int days)
     {
         *this = *this + days;
         return *this;
     }
 
+    // date - num
     CDate operator-(const int days) const
     {
         CDate ret(m_year, m_month, m_day);
         ret.addDays(-days);
         return ret;
+    }
+
+    // date -= num
+    CDate &operator-=(const int days)
+    {
+        *this = *this - days;
+        return *this;
     }
 
     // Prefix ++
@@ -326,37 +356,10 @@ public:
         return temp;
     }
 
+    // Difference in days between two days
     int operator-(const CDate &rhs) const
     {
         return abs(countDaysDifference(*this, rhs));
-    }
-
-    CDate &operator-=(const int days)
-    {
-        *this = *this - days;
-        return *this;
-    }
-
-    static int countDaysDifference(const CDate &dateA, const CDate &dateB)
-    {
-        long long daysDiff = 0;
-
-        if (dateA.m_year != dateB.m_year)
-        {
-            // Remaining days to the end of the year
-            daysDiff = (isLeapYear(dateA.m_year) ? 366 : 365) - dateA.countDaysFromBeggining();
-
-            for (int i = dateA.m_year + 1; i < dateB.m_year; i++)
-                daysDiff += isLeapYear(i) ? 366 : 365;
-
-            daysDiff += dateB.countDaysFromBeggining();
-        }
-        else
-        {
-            daysDiff = dateB.countDaysFromBeggining() - dateA.countDaysFromBeggining();
-        }
-
-        return daysDiff;
     }
 };
 
@@ -365,6 +368,26 @@ int main(void)
 {
     ostringstream oss;
     istringstream iss;
+
+    CDate months(2000, 1, 1);
+
+    months.addMonths(12);
+    oss.str("");
+    oss << months;
+    cout << months << endl;
+    assert(oss.str() == "2001-01-01");
+
+    months.addMonths(24);
+    oss.str("");
+    oss << months;
+    cout << months << endl;
+    assert(oss.str() == "2003-01-01");
+
+    months.addMonths(-48);
+    oss.str("");
+    oss << months;
+    cout << months << endl;
+    assert(oss.str() == "1999-01-01");
 
     CDate a(2000, 1, 2);
     CDate b(2010, 2, 3);
@@ -392,7 +415,7 @@ int main(void)
 
     presrok += 11;
 
-    // cout << presrok << endl;
+    cout << presrok << endl;
 
     oss.str("");
     oss << presrok;
