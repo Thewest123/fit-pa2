@@ -38,9 +38,7 @@ private:
     vector<shared_ptr<TCompany>> m_companiesById;
     vector<unsigned int> m_invoices;
 
-    size_t nextCompanyIndex = 0;
-
-    bool searchCompanyByName(const string &name, const string &address, std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator &result) const
+    bool searchCompanyByName(const string &name, const string &address, vector<shared_ptr<TCompany>>::const_iterator &result) const
     {
         // Companies vector is empty, can't search
         if (m_companiesByName.size() == 0)
@@ -70,7 +68,6 @@ private:
         }
 
         result = iter;
-        // result = iter->get();
 
         // Decrement the shared_ptr usage counter
         searchCompany.reset();
@@ -78,7 +75,7 @@ private:
         return true;
     }
 
-    bool searchCompanyById(const string &taxId, std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator &result) const
+    bool searchCompanyById(const string &taxId, vector<shared_ptr<TCompany>>::const_iterator &result) const
     {
         // Companies vector is empty, can't search
         if (m_companiesById.size() == 0)
@@ -107,7 +104,6 @@ private:
         }
 
         result = iter;
-        // result = iter->get();
 
         // Decrement the shared_ptr usage counter
         searchCompany.reset();
@@ -175,9 +171,6 @@ public:
             }
 
             // If we found by ID
-            // if (nameIter != m_companiesByName.end() &&
-            //     ((*nameIter)->m_name == company->m_name && (*nameIter)->m_address == company->m_address))
-
             if (nameIter != m_companiesByName.end() &&
                 (strcasecmp((*nameIter)->m_name.c_str(), company->m_name.c_str()) == 0 &&
                  (strcasecmp((*nameIter)->m_address.c_str(), company->m_address.c_str()) == 0)))
@@ -198,8 +191,8 @@ public:
     bool cancelCompany(const string &name,
                        const string &addr)
     {
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iterName;
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iterId;
+        vector<shared_ptr<TCompany>>::const_iterator iterName;
+        vector<shared_ptr<TCompany>>::const_iterator iterId;
 
         // Search for company in both vectors
         if (!searchCompanyByName(name, addr, iterName))
@@ -217,8 +210,8 @@ public:
 
     bool cancelCompany(const string &taxID)
     {
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iterId;
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iterName;
+        vector<shared_ptr<TCompany>>::const_iterator iterId;
+        vector<shared_ptr<TCompany>>::const_iterator iterName;
 
         // Search for company in both vectors
         if (!searchCompanyById(taxID, iterId))
@@ -237,7 +230,7 @@ public:
     bool invoice(const string &taxID,
                  unsigned int amount)
     {
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iter;
+        vector<shared_ptr<TCompany>>::const_iterator iter;
 
         // Search for company
         if (!searchCompanyById(taxID, iter))
@@ -245,7 +238,6 @@ public:
 
         // Add amount to found company
         (*iter)->m_invoicesSum += amount;
-        // foundCompany->m_invoicesSum += amount;
 
         // Add amount to invocies vector
         auto invoiceIter = lower_bound(m_invoices.begin(), m_invoices.end(), amount);
@@ -258,7 +250,7 @@ public:
                  const string &addr,
                  unsigned int amount)
     {
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iter;
+        vector<shared_ptr<TCompany>>::const_iterator iter;
 
         // Search for company
         if (!searchCompanyByName(name, addr, iter))
@@ -266,7 +258,6 @@ public:
 
         // Add amount to found company
         (*iter)->m_invoicesSum += amount;
-        // foundCompany->m_invoicesSum += amount;
 
         // Add amount to invocies vector
         auto invoiceIter = lower_bound(m_invoices.begin(), m_invoices.end(), amount);
@@ -279,7 +270,7 @@ public:
                const string &addr,
                unsigned int &sumIncome) const
     {
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iter;
+        vector<shared_ptr<TCompany>>::const_iterator iter;
 
         // Search for company
         if (!searchCompanyByName(name, addr, iter))
@@ -293,7 +284,7 @@ public:
     bool audit(const string &taxID,
                unsigned int &sumIncome) const
     {
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iter;
+        vector<shared_ptr<TCompany>>::const_iterator iter;
 
         // Search for company
         if (!searchCompanyById(taxID, iter))
@@ -319,7 +310,7 @@ public:
     bool nextCompany(string &name,
                      string &addr) const
     {
-        std::vector<std::shared_ptr<CVATRegister::TCompany>>::const_iterator iter;
+        vector<shared_ptr<TCompany>>::const_iterator iter;
 
         // Search for company
         if (!searchCompanyByName(name, addr, iter))
