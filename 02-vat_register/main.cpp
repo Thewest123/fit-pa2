@@ -1,3 +1,10 @@
+/**
+ * @file main.cpp
+ * @author Jan Cerny (cernyj87@fit.cvut.cz)
+ * @version 1.0
+ * @date 2022-04-01
+ */
+
 #ifndef __PROGTEST__
 #include <cstring>
 #include <cstdlib>
@@ -19,6 +26,10 @@ class CVATRegister
 {
 
 private:
+    // Alias for shared_ptr iterator in vector of T
+    template <typename T>
+    using ptrIterator = typename vector<shared_ptr<T>>::const_iterator;
+
     struct TCompany
     {
         unsigned int m_invoicesSum = 0u;
@@ -38,10 +49,19 @@ private:
     vector<shared_ptr<TCompany>> m_companiesById;
     vector<unsigned int> m_invoices;
 
-    bool searchCompanyByName(const string &name, const string &address, vector<shared_ptr<TCompany>>::const_iterator &result) const
+    /**
+     * @brief Searche for company by name and adress
+     *
+     * @param name
+     * @param address
+     * @param[out] result ptrIterator to the found company
+     * @return true If company was found
+     * @return false If company was NOT found
+     */
+    bool searchCompanyByName(const string &name, const string &address, ptrIterator<TCompany> &result) const
     {
         // Companies vector is empty, can't search
-        if (m_companiesByName.size() == 0)
+        if (m_companiesByName.empty())
             return false;
 
         // Create dummy company for compare function
@@ -75,10 +95,18 @@ private:
         return true;
     }
 
-    bool searchCompanyById(const string &taxId, vector<shared_ptr<TCompany>>::const_iterator &result) const
+    /**
+     * @brief Search for company by taxId
+     *
+     * @param[in] taxId
+     * @param[out] result ptrIterator to the found company
+     * @return true If company was found
+     * @return false If company was NOT found
+     */
+    bool searchCompanyById(const string &taxId, ptrIterator<TCompany> &result) const
     {
         // Companies vector is empty, can't search
-        if (m_companiesById.size() == 0)
+        if (m_companiesById.empty())
             return false;
 
         // Create dummy company for compare function
@@ -116,6 +144,14 @@ public:
 
     ~CVATRegister(void) = default;
 
+    /**
+     * @brief Compare function for lower_bound, case-insensitive, compares lexicographically by name and then by address
+     *
+     * @param a
+     * @param b
+     * @return true
+     * @return false
+     */
     static bool nameComp(const shared_ptr<TCompany> &a, const shared_ptr<TCompany> &b)
     {
         // Compare names case-insensitively
@@ -131,6 +167,14 @@ public:
         return (namesCompare < 0) ? true : false;
     };
 
+    /**
+     * @brief Compare function for lower_bound, compares lexicographically by taxId
+     *
+     * @param a
+     * @param b
+     * @return true
+     * @return false
+     */
     static bool idComp(const shared_ptr<TCompany> &a, const shared_ptr<TCompany> &b)
     {
         int idsCompare = strcmp(a->m_taxId.c_str(), b->m_taxId.c_str());
@@ -138,6 +182,15 @@ public:
         return (idsCompare < 0) ? true : false;
     };
 
+    /**
+     * @brief Create a new company if it doesn't exist yet
+     *
+     * @param name Name for the company, case-insensitive
+     * @param addr Address for the company, case-insensitive
+     * @param taxID TaxID for the company
+     * @return true If new company was added
+     * @return false If company already exists
+     */
     bool newCompany(const string &name,
                     const string &addr,
                     const string &taxID)
@@ -145,7 +198,7 @@ public:
         auto company = make_shared<TCompany>(name, addr, taxID);
 
         // If vectors are empty, push_back new company
-        if (m_companiesByName.size() == 0 && m_companiesById.size() == 0)
+        if (m_companiesByName.empty() && m_companiesById.empty())
         {
 
             m_companiesByName.push_back(company);
@@ -162,7 +215,7 @@ public:
         if (nameIter != m_companiesByName.end() || idIter != m_companiesById.end())
         {
 
-            // If we found by name+addr
+            // If we found by name+addr, check that the taxId matches
             if (idIter != m_companiesById.end() && (*idIter)->m_taxId == company->m_taxId)
             {
                 // Decrement the usage counter, we're not be using this pointer anymore
@@ -170,10 +223,11 @@ public:
                 return false;
             }
 
-            // If we found by ID
+            // If we found by ID, check the name+addr match
             if (nameIter != m_companiesByName.end() &&
-                (strcasecmp((*nameIter)->m_name.c_str(), company->m_name.c_str()) == 0 &&
-                 (strcasecmp((*nameIter)->m_address.c_str(), company->m_address.c_str()) == 0)))
+                strcasecmp((*nameIter)->m_name.c_str(), company->m_name.c_str()) == 0 &&
+                strcasecmp((*nameIter)->m_address.c_str(), company->m_address.c_str()) == 0)
+
             {
                 // Decrement the usage counter, we're not be using this pointer anymore
                 company.reset();
@@ -188,11 +242,19 @@ public:
         return true;
     };
 
+    /**
+     * @brief Delete company from database, by name and address (case-insensitive)
+     *
+     * @param name
+     * @param addr
+     * @return true If company was successfully deleted
+     * @return false If company wasn't found
+     */
     bool cancelCompany(const string &name,
                        const string &addr)
     {
-        vector<shared_ptr<TCompany>>::const_iterator iterName;
-        vector<shared_ptr<TCompany>>::const_iterator iterId;
+        ptrIterator<TCompany> iterName;
+        ptrIterator<TCompany> iterId;
 
         // Search for company in both vectors
         if (!searchCompanyByName(name, addr, iterName))
@@ -208,10 +270,18 @@ public:
         return true;
     }
 
+    /**
+     * @brief Delete company from database, by taxID
+     *
+     * @param taxID
+     * @param addr
+     * @return true If company was successfully deleted
+     * @return false If company wasn't found
+     */
     bool cancelCompany(const string &taxID)
     {
-        vector<shared_ptr<TCompany>>::const_iterator iterId;
-        vector<shared_ptr<TCompany>>::const_iterator iterName;
+        ptrIterator<TCompany> iterId;
+        ptrIterator<TCompany> iterName;
 
         // Search for company in both vectors
         if (!searchCompanyById(taxID, iterId))
@@ -227,10 +297,18 @@ public:
         return true;
     }
 
+    /**
+     * @brief Add a new invoice for company, by taxID
+     *
+     * @param taxID
+     * @param amount Amount of money to add
+     * @return true If amount was successfully added
+     * @return false If company wasn't found
+     */
     bool invoice(const string &taxID,
                  unsigned int amount)
     {
-        vector<shared_ptr<TCompany>>::const_iterator iter;
+        ptrIterator<TCompany> iter;
 
         // Search for company
         if (!searchCompanyById(taxID, iter))
@@ -246,11 +324,20 @@ public:
         return true;
     }
 
+    /**
+     * @brief Add a new invoice for company, by name and address (case-insensitive)
+     *
+     * @param name
+     * @param addr
+     * @param amount Amount of money to add
+     * @return true If amount was successfully added
+     * @return false If company wasn't found
+     */
     bool invoice(const string &name,
                  const string &addr,
                  unsigned int amount)
     {
-        vector<shared_ptr<TCompany>>::const_iterator iter;
+        ptrIterator<TCompany> iter;
 
         // Search for company
         if (!searchCompanyByName(name, addr, iter))
@@ -266,11 +353,20 @@ public:
         return true;
     }
 
+    /**
+     * @brief Get sum of invoices amounts from company, by name and address (case-insensitive)
+     *
+     * @param name
+     * @param addr
+     * @param[out] sumIncome Sum of all company's invoices
+     * @return true If company was found
+     * @return false If company was NOT found
+     */
     bool audit(const string &name,
                const string &addr,
                unsigned int &sumIncome) const
     {
-        vector<shared_ptr<TCompany>>::const_iterator iter;
+        ptrIterator<TCompany> iter;
 
         // Search for company
         if (!searchCompanyByName(name, addr, iter))
@@ -281,10 +377,18 @@ public:
         return true;
     }
 
+    /**
+     * @brief Get sum of invoices amounts from company, by taxId
+     *
+     * @param taxID
+     * @param[out] sumIncome Sum of all company's invoices
+     * @return true If company was found
+     * @return false If company was NOT found
+     */
     bool audit(const string &taxID,
                unsigned int &sumIncome) const
     {
-        vector<shared_ptr<TCompany>>::const_iterator iter;
+        ptrIterator<TCompany> iter;
 
         // Search for company
         if (!searchCompanyById(taxID, iter))
@@ -295,10 +399,18 @@ public:
         return true;
     }
 
+    /**
+     * @brief Get info about first added company
+     *
+     * @param[out] name Name of the first company
+     * @param[out] addr Address of the first company
+     * @return true If at least 1 company exists
+     * @return false If there are no companis yet
+     */
     bool firstCompany(string &name,
                       string &addr) const
     {
-        if (m_companiesByName.size() == 0)
+        if (m_companiesByName.empty())
             return false;
 
         name = m_companiesByName[0]->m_name;
@@ -307,10 +419,18 @@ public:
         return true;
     }
 
+    /**
+     * @brief Get next following company after company searched by name and address (case-insensitive)
+     *
+     * @param[in,out] name Name of the company to search for, is set to next company's name afterwards
+     * @param[in,out] addr Address of the company to search for, is set to next company's address afterwards
+     * @return true If company was found and next company exists
+     * @return false If company was NOT found, or there is NO next company present
+     */
     bool nextCompany(string &name,
                      string &addr) const
     {
-        vector<shared_ptr<TCompany>>::const_iterator iter;
+        ptrIterator<TCompany> iter;
 
         // Search for company
         if (!searchCompanyByName(name, addr, iter))
@@ -326,6 +446,11 @@ public:
         return true;
     }
 
+    /**
+     * @brief Get median of all added invoices
+     *
+     * @return unsigned int Median of all added invoices, return 0 if there are no invoices yet
+     */
     unsigned int medianInvoice(void) const
     {
         size_t size = m_invoices.size();
