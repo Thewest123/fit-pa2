@@ -50,10 +50,48 @@ private:
     vector<unsigned int> m_invoices;
 
     /**
-     * @brief Searche for company by name and adress
+     * @brief Compare function for lower_bound, case-insensitive, compares lexicographically by name and then by address
      *
-     * @param name
-     * @param address
+     * @param a
+     * @param b
+     * @return true
+     * @return false
+     */
+    static bool nameComp(const shared_ptr<TCompany> &a, const shared_ptr<TCompany> &b)
+    {
+        // Compare names case-insensitively
+        int namesCompare = strcasecmp(a->m_name.c_str(), b->m_name.c_str());
+
+        // If they are the same, compare addresses
+        if (namesCompare == 0)
+        {
+            int addrCompare = strcasecmp(a->m_address.c_str(), b->m_address.c_str());
+            return (addrCompare < 0) ? true : false;
+        }
+
+        return (namesCompare < 0) ? true : false;
+    };
+
+    /**
+     * @brief Compare function for lower_bound, compares lexicographically by taxId
+     *
+     * @param a
+     * @param b
+     * @return true
+     * @return false
+     */
+    static bool idComp(const shared_ptr<TCompany> &a, const shared_ptr<TCompany> &b)
+    {
+        int idsCompare = strcmp(a->m_taxId.c_str(), b->m_taxId.c_str());
+
+        return (idsCompare < 0) ? true : false;
+    };
+
+    /**
+     * @brief Search for company by name and adress
+     *
+     * @param[in] name
+     * @param[in] address
      * @param[out] result ptrIterator to the found company
      * @return true If company was found
      * @return false If company was NOT found
@@ -145,49 +183,11 @@ public:
     ~CVATRegister(void) = default;
 
     /**
-     * @brief Compare function for lower_bound, case-insensitive, compares lexicographically by name and then by address
-     *
-     * @param a
-     * @param b
-     * @return true
-     * @return false
-     */
-    static bool nameComp(const shared_ptr<TCompany> &a, const shared_ptr<TCompany> &b)
-    {
-        // Compare names case-insensitively
-        int namesCompare = strcasecmp(a->m_name.c_str(), b->m_name.c_str());
-
-        // If they are the same, compare addresses
-        if (namesCompare == 0)
-        {
-            int addrComapre = strcasecmp(a->m_address.c_str(), b->m_address.c_str());
-            return (addrComapre < 0) ? true : false;
-        }
-
-        return (namesCompare < 0) ? true : false;
-    };
-
-    /**
-     * @brief Compare function for lower_bound, compares lexicographically by taxId
-     *
-     * @param a
-     * @param b
-     * @return true
-     * @return false
-     */
-    static bool idComp(const shared_ptr<TCompany> &a, const shared_ptr<TCompany> &b)
-    {
-        int idsCompare = strcmp(a->m_taxId.c_str(), b->m_taxId.c_str());
-
-        return (idsCompare < 0) ? true : false;
-    };
-
-    /**
      * @brief Create a new company if it doesn't exist yet
      *
-     * @param name Name for the company, case-insensitive
-     * @param addr Address for the company, case-insensitive
-     * @param taxID TaxID for the company
+     * @param[in] name Name for the company, case-insensitive
+     * @param[in] addr Address for the company, case-insensitive
+     * @param[in] taxID TaxID for the company
      * @return true If new company was added
      * @return false If company already exists
      */
@@ -245,8 +245,8 @@ public:
     /**
      * @brief Delete company from database, by name and address (case-insensitive)
      *
-     * @param name
-     * @param addr
+     * @param[in] name
+     * @param[in] addr
      * @return true If company was successfully deleted
      * @return false If company wasn't found
      */
@@ -273,8 +273,8 @@ public:
     /**
      * @brief Delete company from database, by taxID
      *
-     * @param taxID
-     * @param addr
+     * @param[in] taxID
+     * @param[in] addr
      * @return true If company was successfully deleted
      * @return false If company wasn't found
      */
@@ -300,8 +300,8 @@ public:
     /**
      * @brief Add a new invoice for company, by taxID
      *
-     * @param taxID
-     * @param amount Amount of money to add
+     * @param[in] taxID
+     * @param[in] amount Amount of money to add
      * @return true If amount was successfully added
      * @return false If company wasn't found
      */
@@ -327,9 +327,9 @@ public:
     /**
      * @brief Add a new invoice for company, by name and address (case-insensitive)
      *
-     * @param name
-     * @param addr
-     * @param amount Amount of money to add
+     * @param[in] name
+     * @param[in] addr
+     * @param[in] amount Amount of money to add
      * @return true If amount was successfully added
      * @return false If company wasn't found
      */
@@ -356,8 +356,8 @@ public:
     /**
      * @brief Get sum of invoices amounts from company, by name and address (case-insensitive)
      *
-     * @param name
-     * @param addr
+     * @param[in] name
+     * @param[in] addr
      * @param[out] sumIncome Sum of all company's invoices
      * @return true If company was found
      * @return false If company was NOT found
@@ -380,7 +380,7 @@ public:
     /**
      * @brief Get sum of invoices amounts from company, by taxId
      *
-     * @param taxID
+     * @param[in] taxID
      * @param[out] sumIncome Sum of all company's invoices
      * @return true If company was found
      * @return false If company was NOT found
@@ -466,11 +466,6 @@ public:
         // Get the middle from vector
         size_t middle = size / (size_t)2;
 
-        // If the number is odd, get the upper element from two middles
-        if (size % 2 == 0)
-            return m_invoices[middle];
-
-        // Else get the lower element (decrement by 1 because index counts from 0, vector::size() not)
         return m_invoices[middle];
     }
 };
