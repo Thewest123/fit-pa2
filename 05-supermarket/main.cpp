@@ -44,45 +44,196 @@ public:
                 m_month != rhs.m_month ||
                 m_day != rhs.m_day);
     }
+
+    // Also used by std::map for std::less comparator
+    bool operator<(const CDate &rhs) const
+    {
+        return tie(m_year, m_month, m_day) < tie(rhs.m_year, rhs.m_month, rhs.m_day);
+    }
+
+    bool operator>(const CDate &rhs) const
+    {
+        return tie(m_year, m_month, m_day) > tie(rhs.m_year, rhs.m_month, rhs.m_day);
+    }
+
+    bool operator>=(const CDate &rhs) const
+    {
+        return tie(m_year, m_month, m_day) >= tie(rhs.m_year, rhs.m_month, rhs.m_day);
+    }
 };
 
 class CSupermarket
 {
 private:
-    struct cmpDates
+    struct TProductType
     {
-        bool operator()(const CDate &lhs, CDate &rhs) const
+        map<CDate, int> m_dates;
+
+        void addDate(const CDate &expiryDate, int count)
         {
-            return lhs < rhs;
+            if (m_dates.count(expiryDate))
+            {
+                m_dates.at(expiryDate) += count;
+            }
+            else
+            {
+                m_dates.emplace(expiryDate, count);
+            }
+        }
+
+        int sellCount(int desiredCount)
+        {
+            int soldCount = 0;
+
+            while (m_dates.size() > 0)
+            {
+                auto itemCount = m_dates.begin()->second;
+
+                if (itemCount <= (desiredCount - soldCount))
+                {
+                    soldCount += itemCount;
+                    m_dates.erase(m_dates.begin());
+                    continue;
+                }
+
+                m_dates.begin()->second -= (desiredCount - soldCount);
+                soldCount += (desiredCount - soldCount);
+                break;
+            }
+
+            return soldCount;
         }
     };
 
-    struct TProductType
-    {
-        string m_name;
-        int m_count;
-        map<CDate, int, cmpDates> m_products;
-    };
+    unordered_map<string, TProductType> m_products;
 
 public:
     // default constructor
     // store   ( name, expiryDate, count )
-    // sell    ( shoppingList )
-    // expired ( date ) const
+    CSupermarket &store(const string &productName, const CDate &expiryDate, int count)
+    {
+        // If product already exists
+        if (m_products.count(productName))
+        {
+            // Add new expiry date to it
+            m_products.at(productName).addDate(expiryDate, count);
+        }
+        else
+        {
+            // Create a new product and add it to products
+            TProductType newProduct;
+            newProduct.addDate(expiryDate, count);
+
+            m_products.emplace(productName, newProduct);
+        }
+
+        // Return reference to itself, so we can daisy-chain this method
+        return *this;
+    }
+
+    static bool countCompare(const pair<string, int> &lhs, const pair<string, int> &rhs)
+    {
+        return lhs.second > rhs.second;
+    }
+
+    void sell(list<pair<string, int>> &shoppingList)
+    {
+        // for (auto const &[sellName, desiredCount] : shoppingList)
+        // {
+        //     if (m_products.count(sellName))
+        //     {
+        //         auto product = m_products.at(sellName);
+        //         int soldCount = product.sellCount(desiredCount);
+
+        //         if (desiredCount - soldCount == 0)
+        //         {
+        //             // erase
+        //         }
+        //     }
+        // }
+
+        for (auto it = shoppingList.begin(); it != shoppingList.end(); it++)
+        {
+            // it->first = product name
+            // it->second = desired count
+
+            if (m_products.count(it->first))
+            {
+                // auto product = m_products.at(it->first);
+                int soldCount = m_products.at(it->first).sellCount(it->second);
+
+                if (it->second - soldCount == 0)
+                    it = shoppingList.erase(it);
+                else
+                    it->second -= soldCount;
+            }
+        }
+    }
+
+    list<pair<string, int>> expired(const CDate &expiryDate) const
+    {
+        // List containing expired products, key is productName
+        list<pair<string, int>> expiredList;
+
+        // Loop through all products
+        for (auto const &[productName, productType] : m_products)
+        {
+            int expiredCount = 0;
+
+            // Loop through all expiryDates for product type and check if it's expired
+            for (auto const &[dateDate, dateCount] : productType.m_dates)
+            {
+                // Because m_dates are sorted, we can break once we find date that is higher or equal than expiryDate
+                // (rest of them will be only higher, no need to check them)
+                if (dateDate >= expiryDate)
+                    break;
+
+                expiredCount += dateCount;
+            }
+
+            if (expiredCount > 0)
+            {
+                // Create a new product pair
+                auto product = make_pair(productName, expiredCount);
+
+                // Find the right position, sorted by count
+                auto it = lower_bound(expiredList.begin(), expiredList.end(), product, countCompare);
+
+                // Add to the list
+                expiredList.insert(it, product);
+            }
+        }
+
+        return expiredList;
+    }
 };
 #ifndef __PROGTEST__
 int main(void)
 {
-    cout << "xd" << endl;
-    /*
+    // Check dates comparisons work correctly
+    assert(CDate(2020, 6, 1) > CDate(2020, 5, 30));
+    assert(CDate(2019, 6, 1) < CDate(2020, 5, 30));
+
+    CSupermarket x;
+    x.store("debugging cookie", CDate(2022, 06, 10), 10);
+    x.store("debugging cookie", CDate(2022, 06, 9), 9);
+    x.store("debugging cookie", CDate(2022, 06, 13), 13);
+    x.store("debugging cookie", CDate(2022, 06, 12), 12);
+
+    auto lx = x.expired(CDate(2022, 06, 13));
+    assert(lx.size() == 1);
+    assert((lx == list<pair<string, int>>{{"debugging cookie", 9 + 10 + 12}}));
+
+    auto ly = x.expired(CDate(1969, 4, 20));
+    assert(ly.size() == 0);
+    assert((ly == list<pair<string, int>>{}));
+
     CSupermarket s;
     s.store("bread", CDate(2016, 4, 30), 100)
         .store("butter", CDate(2016, 5, 10), 10)
         .store("beer", CDate(2016, 8, 10), 50)
         .store("bread", CDate(2016, 4, 25), 100)
         .store("okey", CDate(2016, 7, 18), 5);
-
-
 
     list<pair<string, int>> l0 = s.expired(CDate(2018, 4, 30));
     assert(l0.size() == 4);
@@ -112,6 +263,7 @@ int main(void)
 
     s.store("Coke", CDate(2016, 12, 31), 10);
 
+    /*
     list<pair<string, int>> l6{{"Cake", 1}, {"Coke", 1}, {"cake", 1}, {"coke", 1}, {"cuke", 1}, {"Cokes", 1}};
     s.sell(l6);
     assert(l6.size() == 3);
