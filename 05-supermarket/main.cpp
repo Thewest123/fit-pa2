@@ -83,7 +83,7 @@ private:
         {
             if (m_dates.count(expiryDate))
             {
-                m_dates.at(expiryDate) += count;
+                m_dates[expiryDate] += count;
             }
             else
             {
@@ -122,19 +122,6 @@ private:
     };
 
     /**
-     * @brief Compare function for sorting shopping list by sold count in descending order
-     *
-     * @param lhs
-     * @param rhs
-     * @return true
-     * @return false
-     */
-    static bool countCompare(const pair<string, int> &lhs, const pair<string, int> &rhs)
-    {
-        return lhs.second > rhs.second;
-    }
-
-    /**
      * @brief Check that two strings are different at most on 1 character
      *
      * @param stringA
@@ -150,7 +137,7 @@ private:
         int diffCount = 0;
         for (size_t i = 0; i < stringA.length(); i++)
         {
-            if (stringA.at(i) != stringB.at(i))
+            if (stringA[i] != stringB[i])
                 diffCount++;
 
             if (diffCount > 1)
@@ -206,10 +193,13 @@ private:
     set<string> getAllSimilar(const list<pair<string, int>> &shoppingList)
     {
         set<string> allSimilar;
-        string result;
+        string result = "";
 
         for (const auto &[name, count] : shoppingList)
         {
+            if (m_products.count(name))
+                continue;
+
             if (!isUnique(name, result))
                 allSimilar.insert(name);
         }
@@ -234,7 +224,7 @@ public:
         if (m_products.count(productName))
         {
             // Add new expiry date to it
-            m_products.at(productName).addDate(expiryDate, count);
+            m_products[productName].addDate(expiryDate, count);
         }
         else
         {
@@ -266,17 +256,24 @@ public:
             // it->second = desired count
 
             // If we don't have the item, or there are more similar items, don't sell anything
-            if (nonSellale.count(it->first) || !isUnique(it->first, alternative))
+            if (nonSellale.count(it->first))
+            {
+                it++;
+                continue;
+            }
+
+            if (!isUnique(it->first, alternative))
             {
                 it++;
                 continue;
             }
 
             // Sell items and count how many were sold
-            int soldCount = m_products.at(alternative).sellCount(it->second);
+            auto *productIt = &m_products[alternative];
+            int soldCount = productIt->sellCount(it->second);
 
             // If entire stock was sold (there are no more expiry dates), delete the product type itself too
-            if (m_products.at(alternative).m_dates.size() == 0)
+            if (productIt->m_dates.size() == 0)
                 m_products.erase(alternative);
 
             // If we fullfilled the desired amount, remove the product from the shopping list
@@ -303,8 +300,7 @@ public:
      */
     list<pair<string, int>> expired(const CDate &expiryDate) const
     {
-        // List containing expired products, key is productName
-        list<pair<string, int>> expiredList;
+        multimap<int, string, greater<int>> expiredMap;
 
         // Loop through all products
         for (auto const &[productName, productType] : m_products)
@@ -324,15 +320,17 @@ public:
 
             if (expiredCount > 0)
             {
-                // Create a new product pair
-                auto product = make_pair(productName, expiredCount);
-
-                // Find the right position, sorted by count
-                auto it = lower_bound(expiredList.begin(), expiredList.end(), product, countCompare);
-
-                // Add to the list
-                expiredList.insert(it, product);
+                expiredMap.emplace(expiredCount, productName);
             }
+        }
+
+        // List containing expired products, key is productName
+        list<pair<string, int>> expiredList;
+
+        // Copy all products from map to list, swapping name and count
+        for (auto const &[expiredCount, productName] : expiredMap)
+        {
+            expiredList.emplace_back(productName, expiredCount);
         }
 
         return expiredList;
@@ -452,6 +450,13 @@ int main(void)
     s.sell(l15);
     assert(l15.size() == 1);
     assert((l15 == list<pair<string, int>>{{"ccccc", 10}}));
+
+    list<pair<string, int>> l97{{"ccccc", -50}};
+    s.sell(l97);
+    list<pair<string, int>> l98{{"", 0}};
+    s.sell(l98);
+    list<pair<string, int>> l99{{"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 999999999999999}};
+    s.sell(l99);
 
     return EXIT_SUCCESS;
 }
