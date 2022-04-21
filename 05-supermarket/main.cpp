@@ -65,10 +65,20 @@ public:
 class CSupermarket
 {
 private:
+    /**
+     * @brief Stores expiration dates for product type
+     *
+     */
     struct TProductType
     {
         map<CDate, int> m_dates;
 
+        /**
+         * @brief Add count to expiration date, or create a new date if doesn't exist
+         *
+         * @param expiryDate
+         * @param count
+         */
         void addDate(const CDate &expiryDate, int count)
         {
             if (m_dates.count(expiryDate))
@@ -81,6 +91,12 @@ private:
             }
         }
 
+        /**
+         * @brief Sell desired amount of item, respects expiry dates and sells oncoming dates first
+         *
+         * @param desiredCount Amount of items to sell
+         * @return int Count of sold items
+         */
         int sellCount(int desiredCount)
         {
             int soldCount = 0;
@@ -105,11 +121,113 @@ private:
         }
     };
 
+    /**
+     * @brief Compare function for sorting shopping list by sold count in descending order
+     *
+     * @param lhs
+     * @param rhs
+     * @return true
+     * @return false
+     */
+    static bool countCompare(const pair<string, int> &lhs, const pair<string, int> &rhs)
+    {
+        return lhs.second > rhs.second;
+    }
+
+    /**
+     * @brief Check that two strings are different at most on 1 character
+     *
+     * @param stringA
+     * @param stringB
+     * @return true
+     * @return false
+     */
+    static bool isSimilar(const string &stringA, const string &stringB)
+    {
+        if (stringA.length() != stringB.length())
+            return false;
+
+        int diffCount = 0;
+        for (size_t i = 0; i < stringA.length(); i++)
+        {
+            if (stringA.at(i) != stringB.at(i))
+                diffCount++;
+
+            if (diffCount > 1)
+                return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @brief Check that the searched product is unambiguous and can be replaced by different product
+     *
+     * @param search
+     * @param[out] result Name of product that can replace searched product
+     * @return true If product can be replaced with result
+     * @return false If product can NOT be replaced with anything, there are more similarities
+     */
+    bool isUnique(const string &search, string &result)
+    {
+        // If there is exact match, everything is fine
+        if (m_products.count(search))
+        {
+            result = search;
+            return true;
+        }
+
+        // Else we need to find all items, that have similar name
+        int similarCount = 0;
+        for (const auto &product : m_products)
+        {
+            if (similarCount > 1)
+                return false;
+
+            if (isSimilar(product.first, search))
+            {
+                similarCount++;
+                result = product.first;
+            }
+        }
+
+        if (similarCount != 1)
+            return false;
+
+        return true;
+    }
+
+    /**
+     * @brief Get all similar products that we can't sell
+     *
+     * @param shoppingList
+     * @return set<string>
+     */
+    set<string> getAllSimilar(const list<pair<string, int>> &shoppingList)
+    {
+        set<string> allSimilar;
+        string result;
+
+        for (const auto &[name, count] : shoppingList)
+        {
+            if (!isUnique(name, result))
+                allSimilar.insert(name);
+        }
+
+        return allSimilar;
+    }
+
     unordered_map<string, TProductType> m_products;
 
 public:
-    // default constructor
-    // store   ( name, expiryDate, count )
+    /**
+     * @brief Add (store) a new product to the stock
+     *
+     * @param productName
+     * @param expiryDate
+     * @param count
+     * @return CSupermarket& Return itself, so methods can be daisy-chained
+     */
     CSupermarket &store(const string &productName, const CDate &expiryDate, int count)
     {
         // If product already exists
@@ -131,11 +249,11 @@ public:
         return *this;
     }
 
-    static bool countCompare(const pair<string, int> &lhs, const pair<string, int> &rhs)
-    {
-        return lhs.second > rhs.second;
-    }
-
+    /**
+     * @brief Sell itemps provided in shopping list
+     *
+     * @param shoppingList Rest of the shopping list, containing items and counts that couldn't be sold
+     */
     void sell(list<pair<string, int>> &shoppingList)
     {
         auto nonSellale = getAllSimilar(shoppingList);
@@ -147,22 +265,27 @@ public:
             // it->first = product name
             // it->second = desired count
 
+            // If we don't have the item, or there are more similar items, don't sell anything
             if (nonSellale.count(it->first) || !isUnique(it->first, alternative))
             {
                 it++;
                 continue;
             }
 
+            // Sell items and count how many were sold
             int soldCount = m_products.at(alternative).sellCount(it->second);
 
+            // If entire stock was sold (there are no more expiry dates), delete the product type itself too
             if (m_products.at(alternative).m_dates.size() == 0)
                 m_products.erase(alternative);
 
+            // If we fullfilled the desired amount, remove the product from the shopping list
             if (it->second - soldCount == 0)
             {
                 it = shoppingList.erase(it);
                 continue;
             }
+            // Else just decrement the counter
             else
             {
                 it->second -= soldCount;
@@ -172,6 +295,12 @@ public:
         }
     }
 
+    /**
+     * @brief Get all products that have expired on the provided expiryDate
+     *
+     * @param expiryDate
+     * @return list<pair<string, int>> Expired products, sorted by count
+     */
     list<pair<string, int>> expired(const CDate &expiryDate) const
     {
         // List containing expired products, key is productName
@@ -208,67 +337,6 @@ public:
 
         return expiredList;
     }
-
-    static bool isSimilar(const string &stringA, const string &stringB)
-    {
-        if (stringA.length() != stringB.length())
-            return false;
-
-        int diffCount = 0;
-        for (size_t i = 0; i < stringA.length(); i++)
-        {
-            if (stringA.at(i) != stringB.at(i))
-                diffCount++;
-
-            if (diffCount > 1)
-                return false;
-        }
-
-        return true;
-    }
-
-    bool isUnique(const string &search, string &result)
-    {
-        // If there is exact match, everything is fine
-        if (m_products.count(search))
-        {
-            result = search;
-            return true;
-        }
-
-        // Else we need to find all items, that have similar name
-        int similarCount = 0;
-        for (const auto &product : m_products)
-        {
-            if (similarCount > 1)
-                return false;
-
-            if (isSimilar(product.first, search))
-            {
-                similarCount++;
-                result = product.first;
-            }
-        }
-
-        if (similarCount != 1)
-            return false;
-
-        return true;
-    }
-
-    set<string> getAllSimilar(const list<pair<string, int>> &shoppingList)
-    {
-        set<string> allSimilar;
-        string result;
-
-        for (const auto &[name, count] : shoppingList)
-        {
-            if (!isUnique(name, result))
-                allSimilar.insert(name);
-        }
-
-        return allSimilar;
-    }
 };
 #ifndef __PROGTEST__
 int main(void)
@@ -277,12 +345,12 @@ int main(void)
     assert(CDate(2020, 6, 1) > CDate(2020, 5, 30));
     assert(CDate(2019, 6, 1) < CDate(2020, 5, 30));
 
-    assert(CSupermarket::isSimilar("lorem", "lorem"));
-    assert(CSupermarket::isSimilar("lorem", "Lorem"));
-    assert(CSupermarket::isSimilar("lOrem", "lorem"));
-    assert(!CSupermarket::isSimilar("lorem", "lorem ipsum"));
-    assert(!CSupermarket::isSimilar("lorem", "lorEM"));
-    assert(!CSupermarket::isSimilar("Lorem", "lOrem"));
+    // assert(CSupermarket::isSimilar("lorem", "lorem"));
+    // assert(CSupermarket::isSimilar("lorem", "Lorem"));
+    // assert(CSupermarket::isSimilar("lOrem", "lorem"));
+    // assert(!CSupermarket::isSimilar("lorem", "lorem ipsum"));
+    // assert(!CSupermarket::isSimilar("lorem", "lorEM"));
+    // assert(!CSupermarket::isSimilar("Lorem", "lOrem"));
 
     CSupermarket x;
     x.store("debugging cookie", CDate(2022, 06, 10), 10);
