@@ -138,35 +138,37 @@ public:
 
     void sell(list<pair<string, int>> &shoppingList)
     {
-        // for (auto const &[sellName, desiredCount] : shoppingList)
-        // {
-        //     if (m_products.count(sellName))
-        //     {
-        //         auto product = m_products.at(sellName);
-        //         int soldCount = product.sellCount(desiredCount);
+        auto nonSellale = getAllSimilar(shoppingList);
+        string alternative = "";
 
-        //         if (desiredCount - soldCount == 0)
-        //         {
-        //             // erase
-        //         }
-        //     }
-        // }
-
-        for (auto it = shoppingList.begin(); it != shoppingList.end(); it++)
+        auto it = shoppingList.begin();
+        while (it != shoppingList.end())
         {
             // it->first = product name
             // it->second = desired count
 
-            if (m_products.count(it->first))
+            if (nonSellale.count(it->first) || !isUnique(it->first, alternative))
             {
-                // auto product = m_products.at(it->first);
-                int soldCount = m_products.at(it->first).sellCount(it->second);
-
-                if (it->second - soldCount == 0)
-                    it = shoppingList.erase(it);
-                else
-                    it->second -= soldCount;
+                it++;
+                continue;
             }
+
+            int soldCount = m_products.at(alternative).sellCount(it->second);
+
+            if (m_products.at(alternative).m_dates.size() == 0)
+                m_products.erase(alternative);
+
+            if (it->second - soldCount == 0)
+            {
+                it = shoppingList.erase(it);
+                continue;
+            }
+            else
+            {
+                it->second -= soldCount;
+            }
+
+            it++;
         }
     }
 
@@ -206,6 +208,67 @@ public:
 
         return expiredList;
     }
+
+    static bool isSimilar(const string &stringA, const string &stringB)
+    {
+        if (stringA.length() != stringB.length())
+            return false;
+
+        int diffCount = 0;
+        for (size_t i = 0; i < stringA.length(); i++)
+        {
+            if (stringA.at(i) != stringB.at(i))
+                diffCount++;
+
+            if (diffCount > 1)
+                return false;
+        }
+
+        return true;
+    }
+
+    bool isUnique(const string &search, string &result)
+    {
+        // If there is exact match, everything is fine
+        if (m_products.count(search))
+        {
+            result = search;
+            return true;
+        }
+
+        // Else we need to find all items, that have similar name
+        int similarCount = 0;
+        for (const auto &product : m_products)
+        {
+            if (similarCount > 1)
+                return false;
+
+            if (isSimilar(product.first, search))
+            {
+                similarCount++;
+                result = product.first;
+            }
+        }
+
+        if (similarCount != 1)
+            return false;
+
+        return true;
+    }
+
+    set<string> getAllSimilar(const list<pair<string, int>> &shoppingList)
+    {
+        set<string> allSimilar;
+        string result;
+
+        for (const auto &[name, count] : shoppingList)
+        {
+            if (!isUnique(name, result))
+                allSimilar.insert(name);
+        }
+
+        return allSimilar;
+    }
 };
 #ifndef __PROGTEST__
 int main(void)
@@ -213,6 +276,13 @@ int main(void)
     // Check dates comparisons work correctly
     assert(CDate(2020, 6, 1) > CDate(2020, 5, 30));
     assert(CDate(2019, 6, 1) < CDate(2020, 5, 30));
+
+    assert(CSupermarket::isSimilar("lorem", "lorem"));
+    assert(CSupermarket::isSimilar("lorem", "Lorem"));
+    assert(CSupermarket::isSimilar("lOrem", "lorem"));
+    assert(!CSupermarket::isSimilar("lorem", "lorem ipsum"));
+    assert(!CSupermarket::isSimilar("lorem", "lorEM"));
+    assert(!CSupermarket::isSimilar("Lorem", "lOrem"));
 
     CSupermarket x;
     x.store("debugging cookie", CDate(2022, 06, 10), 10);
@@ -263,7 +333,6 @@ int main(void)
 
     s.store("Coke", CDate(2016, 12, 31), 10);
 
-    /*
     list<pair<string, int>> l6{{"Cake", 1}, {"Coke", 1}, {"cake", 1}, {"coke", 1}, {"cuke", 1}, {"Cokes", 1}};
     s.sell(l6);
     assert(l6.size() == 3);
@@ -315,8 +384,6 @@ int main(void)
     s.sell(l15);
     assert(l15.size() == 1);
     assert((l15 == list<pair<string, int>>{{"ccccc", 10}}));
-
-    */
 
     return EXIT_SUCCESS;
 }
